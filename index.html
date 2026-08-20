@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0B1026">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon.svg">
     <title>OmniGraph AI</title>
     <link rel="stylesheet" href="/style.css">
 </head>
@@ -27,7 +30,7 @@
 
             <div id="chat-log" class="chat-log"></div>
 
-            <!-- Input Area (Fixed to bottom) -->
+            <!-- Input Area -->
             <div class="input-area">
                 <div class="audio-visualizer" id="audio-visualizer">
                     <svg viewBox="0 0 100 40" preserveAspectRatio="none">
@@ -82,5 +85,10 @@
     </div>
 
     <script src="/app.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
 </body>
 </html>

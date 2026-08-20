@@ -3,7 +3,6 @@ const rateLimit = {};
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
     
-    // Basic Rate Limiting (10 requests per minute per IP)
     const ip = req.headers['x-forwarded-for'] || 'unknown';
     const now = Date.now();
     if (!rateLimit[ip]) rateLimit[ip] = [];
@@ -15,9 +14,8 @@ export default async function handler(req, res) {
 
     const { prompt } = req.body;
     const apiKey = process.env.AI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'Configuration Error: Nvidia API key missing in Vercel Environment Variables.' });
+    if (!apiKey) return res.status(500).json({ error: 'Configuration Error: Nvidia API key missing.' });
 
-    // Single smart model handles both chat and math dynamically
     const systemPrompt = `You are OmniGraph AI, an expert math visualizer. 
     If the user asks to visualize, show, draw, or graph math, return ONLY valid JSON with keys "text" (brief explanation) and "svg" (valid SVG inner tags fitting a 200x200 viewBox, dark theme colors like #3B82F6 or #10B981). 
     If just chatting, return JSON with only "text".`;
@@ -27,16 +25,14 @@ export default async function handler(req, res) {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'nvidia/llama-3.1-nemotron-70b-instruct',
+                model: 'meta/llama-3.1-70b-instruct', // Switched to stable, universally available model
                 messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
                 temperature: 0.2,
-                max_tokens: 800 // Safety cap to prevent token abuse
+                max_tokens: 800
             })
         });
 
         const data = await response.json();
-        
-        // Detailed Error Parsing
         if (!response.ok) {
             const errDetail = data.error?.message || JSON.stringify(data.detail || data.error) || 'Unknown API rejection.';
             return res.status(response.status).json({ error: `Nvidia API Error (${response.status}): ${errDetail}` });
