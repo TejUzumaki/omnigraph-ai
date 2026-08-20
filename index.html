@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>OmniGraph AI</title>
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
     <div class="app">
-        <!-- Sidebar -->
+        <!-- Sidebar & Backdrop -->
+        <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="toggleSidebar()"></div>
         <aside id="sidebar" class="sidebar">
             <button class="btn btn-primary cuts" onclick="startNewChat()">+ New Chat</button>
             <div id="chat-history" class="history-container"></div>
@@ -17,17 +18,16 @@
         <!-- Main App -->
         <main class="main-app">
             <header class="header">
-                <button id="menu-btn" class="btn btn-ghost cutxs" onclick="toggleSidebar()">≡</button>
+                <button class="btn btn-ghost cutxs menu-btn" onclick="toggleSidebar()">≡</button>
                 <h1 class="callsign">OMNIGRAPH</h1>
                 <div class="status-indicator">
                     <span id="status-dot" class="status-dot"></span>
-                    <span id="status-text" class="status-text">Pinging...</span>
                 </div>
             </header>
 
             <div id="chat-log" class="chat-log"></div>
 
-            <!-- Input Area -->
+            <!-- Input Area (Fixed to bottom) -->
             <div class="input-area">
                 <div class="audio-visualizer" id="audio-visualizer">
                     <svg viewBox="0 0 100 40" preserveAspectRatio="none">
@@ -44,10 +44,41 @@
                     </svg>
                 </div>
                 <input type="text" id="prompt" class="inp cuts" placeholder="Ask to visualize math..." autocomplete="off" onkeydown="if(event.key==='Enter') sendPrompt()">
-                <button id="mic-btn" class="btn btn-ghost cutxs action-btn" onclick="toggleMic()">●</button>
-                <button class="btn btn-primary cutxs action-btn" onclick="sendPrompt()">➤</button>
+                
+                <!-- SVG Mic Button -->
+                <button id="mic-btn" class="btn btn-ghost cutxs action-btn" onclick="toggleMic()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                </button>
+                <button class="btn btn-primary cutxs action-btn" onclick="sendPrompt()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
             </div>
         </main>
+
+        <!-- Onboarding Tutorial Overlay -->
+        <div id="tutorial" class="tutorial-overlay">
+            <div class="tutorial-content cut">
+                <h2>Welcome to OmniGraph AI</h2>
+                <p>A space-age math visualizer.</p>
+                <div class="tut-step">
+                    <h3>1. Ask or Speak</h3>
+                    <p>Type your question or hit the mic to speak. Ask it to "Show me a circle equation".</p>
+                </div>
+                <div class="tut-step">
+                    <h3>2. Visualize</h3>
+                    <p>The AI will explain the concept and draw it on the dark board inside the chat.</p>
+                </div>
+                <button class="btn btn-primary cuts start-btn" onclick="finishTutorial()">Start</button>
+            </div>
+        </div>
     </div>
 
     <script src="/app.js"></script>
