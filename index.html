@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI SVG Animator</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="app">
+        <div class="panel left-panel">
+            <h2>AI Generator</h2>
+            <textarea id="prompt" placeholder="e.g., A caveman in pixel art format"></textarea>
+            <button onclick="generateSVG()">Generate Layers</button>
+            <div id="status"></div>
+        </div>
+
+        <div class="panel center-panel">
+            <h2>Preview</h2>
+            <div class="svg-container">
+                <svg id="canvas" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+            <h3>Animation Code (CSS Keyframes)</h3>
+            <textarea id="css_code" placeholder="@keyframes walk { 0% {transform: translateX(0);} 100% {transform: translateX(50px);} }"></textarea>
+            <button onclick="applyAnimation()">Apply Animation</button>
+        </div>
+
+        <div class="panel right-panel">
+            <h2>Layers & Colors</h2>
+            <div id="layers_list"></div>
+        </div>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>
