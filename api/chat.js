@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
     if (type === 'math') {
         model = 'nvidia/llama-3.1-nemotron-70b-instruct';
-        systemPrompt = `You are an expert math visualizer. The user wants to visualize a concept. Return ONLY valid JSON. Keys: 'text' (a brief 1-2 sentence explanation), 'svg' (a string containing valid SVG inner tags like <circle>, <line>, <path> with strokes and fills, fitting a 200x200 viewBox). Example: {"text":"A circle is formed by points equidistant from a center.", "svg":"<circle cx='100' cy='100' r='50' stroke='#00FF41' stroke-width='2' fill='none'/><line x1='100' y1='100' x2='150' y2='100' stroke='#4B0082' stroke-width='2'/>"}`;
+        systemPrompt = `You are an expert math visualizer. The user wants to visualize a concept. Return ONLY valid JSON. Keys: 'text' (a brief 1-2 sentence explanation), 'svg' (a string containing valid SVG inner tags like <circle>, <line>, <path> with strokes and fills, fitting a 200x200 viewBox).`;
         temp = 0.2; max_tokens = 1000;
     }
 

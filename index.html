@@ -7,42 +7,47 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <!-- Sidebar -->
-    <div id="sidebar" class="sidebar">
-        <button class="new-chat-btn" onclick="startNewChat()">+ New Chat</button>
-        <div id="chat-history"></div>
-    </div>
+    <div class="app">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+            <button class="btn btn-primary cuts" onclick="startNewChat()">+ New Chat</button>
+            <div id="chat-history" class="history-container"></div>
+        </aside>
 
-    <!-- Main App -->
-    <div class="main-app">
-        <header>
-            <button id="menu-btn" onclick="toggleSidebar()">≡</button>
-            <h1>OmniGraph AI</h1>
-            <div id="status-badge" class="status-badge pinging">Pinging AI...</div>
-        </header>
+        <!-- Main App -->
+        <main class="main-app">
+            <header class="header">
+                <button id="menu-btn" class="btn btn-ghost cutxs" onclick="toggleSidebar()">≡</button>
+                <h1 class="callsign">OMNIGRAPH</h1>
+                <div class="status-indicator">
+                    <span id="status-dot" class="status-dot"></span>
+                    <span id="status-text" class="status-text">Pinging...</span>
+                </div>
+            </header>
 
-        <div id="chat-log"></div>
+            <div id="chat-log" class="chat-log"></div>
 
-        <!-- Input Area -->
-        <div class="input-area">
-            <div class="audio-visualizer" id="audio-visualizer">
-                <svg viewBox="0 0 100 40" preserveAspectRatio="none">
-                    <rect class="bar" x="0" y="15" width="4" height="10" rx="2"></rect>
-                    <rect class="bar" x="10" y="10" width="4" height="20" rx="2"></rect>
-                    <rect class="bar" x="20" y="15" width="4" height="10" rx="2"></rect>
-                    <rect class="bar" x="30" y="5" width="4" height="30" rx="2"></rect>
-                    <rect class="bar" x="40" y="15" width="4" height="10" rx="2"></rect>
-                    <rect class="bar" x="50" y="10" width="4" height="20" rx="2"></rect>
-                    <rect class="bar" x="60" y="15" width="4" height="10" rx="2"></rect>
-                    <rect class="bar" x="70" y="5" width="4" height="30" rx="2"></rect>
-                    <rect class="bar" x="80" y="15" width="4" height="10" rx="2"></rect>
-                    <rect class="bar" x="90" y="10" width="4" height="20" rx="2"></rect>
-                </svg>
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="audio-visualizer" id="audio-visualizer">
+                    <svg viewBox="0 0 100 40" preserveAspectRatio="none">
+                        <rect class="bar" x="0" y="15" width="4" height="10"></rect>
+                        <rect class="bar" x="10" y="10" width="4" height="20"></rect>
+                        <rect class="bar" x="20" y="15" width="4" height="10"></rect>
+                        <rect class="bar" x="30" y="5" width="4" height="30"></rect>
+                        <rect class="bar" x="40" y="15" width="4" height="10"></rect>
+                        <rect class="bar" x="50" y="10" width="4" height="20"></rect>
+                        <rect class="bar" x="60" y="15" width="4" height="10"></rect>
+                        <rect class="bar" x="70" y="5" width="4" height="30"></rect>
+                        <rect class="bar" x="80" y="15" width="4" height="10"></rect>
+                        <rect class="bar" x="90" y="10" width="4" height="20"></rect>
+                    </svg>
+                </div>
+                <input type="text" id="prompt" class="inp cuts" placeholder="Ask to visualize math..." autocomplete="off" onkeydown="if(event.key==='Enter') sendPrompt()">
+                <button id="mic-btn" class="btn btn-ghost cutxs action-btn" onclick="toggleMic()">●</button>
+                <button class="btn btn-primary cutxs action-btn" onclick="sendPrompt()">➤</button>
             </div>
-            <input type="text" id="prompt" placeholder="Ask to visualize math..." autocomplete="off">
-            <button id="mic-btn" class="action-btn" onclick="toggleMic()">●</button>
-            <button class="action-btn send-btn" onclick="sendPrompt()">➤</button>
-        </div>
+        </main>
     </div>
 
     <script src="/app.js"></script>

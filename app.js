@@ -5,20 +5,23 @@ let recognition = null;
 
 // --- Startup Ping ---
 async function checkApiStatus() {
-    const badge = document.getElementById('status-badge');
+    const dot = document.getElementById('status-dot');
+    const text = document.getElementById('status-text');
     try {
         const res = await fetch('/api/ping');
         const data = await res.json();
         if (data.status === 'connected') {
-            badge.innerText = 'AI Connected';
-            badge.className = 'status-badge connected';
+            dot.className = 'status-dot online';
+            text.innerText = 'ONLINE';
+            text.style.color = 'var(--accent-success)';
         } else {
-            badge.innerText = 'API Error';
-            badge.className = 'status-badge error';
+            dot.className = 'status-dot error';
+            text.innerText = 'ERROR';
+            text.style.color = 'var(--accent-danger)';
         }
     } catch (e) {
-        badge.innerText = 'Network Error';
-        badge.className = 'status-badge error';
+        dot.className = 'status-dot error';
+        text.innerText = 'OFFLINE';
     }
 }
 checkApiStatus();
@@ -30,14 +33,14 @@ function renderHistory() {
     historyDiv.innerHTML = '';
     chats.forEach(chat => {
         const item = document.createElement('div');
-        item.className = 'history-item' + (chat.id === currentChatId ? ' active' : '');
+        item.className = 'history-item cuts' + (chat.id === currentChatId ? ' active' : '');
         item.innerText = chat.title;
         item.onclick = () => loadChat(chat.id);
         historyDiv.appendChild(item);
     });
 }
 function startNewChat() {
-    const newChat = { id: Date.now(), title: 'New Chat', messages: [] };
+    const newChat = { id: Date.now(), title: 'New Session', messages: [] };
     chats.unshift(newChat);
     currentChatId = newChat.id;
     document.getElementById('chat-log').innerHTML = '';
@@ -58,23 +61,22 @@ function saveChats() { localStorage.setItem('chats', JSON.stringify(chats)); }
 function renderMessage(sender, text, svgString) {
     const log = document.getElementById('chat-log');
     const msgDiv = document.createElement('div');
-    msgDiv.className = `msg ${sender}`;
+    msgDiv.className = `msg-container cut ${sender}`;
     
     let content = `<div>${text}</div>`;
     if (svgString) {
-        content += `<div class="math-board"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgString}</svg></div>`;
+        content += `<div class="math-board cuts"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgString}</svg></div>`;
     }
     msgDiv.innerHTML = content;
     log.appendChild(msgDiv);
     log.scrollTop = log.scrollHeight;
 
-    // Save to state
     if (!currentChatId) startNewChat();
     const chat = chats.find(c => c.id === currentChatId);
     if (chat) {
         chat.messages.push({ sender, text, svgString });
         if (sender === 'user' && chat.messages.length === 1) {
-            chat.title = text.substring(0, 30) + '...';
+            chat.title = text.substring(0, 20) + '...';
             renderHistory();
         }
         saveChats();
@@ -88,13 +90,13 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition = new SR();
     recognition.continuous = false; recognition.interimResults = false;
     recognition.onresult = (e) => { document.getElementById('prompt').value = e.results[0][0].transcript; };
-    recognition.onend = () => { document.getElementById('mic-btn').classList.remove('active'); visualizer.classList.remove('active'); };
+    recognition.onend = () => { document.getElementById('mic-btn').classList.remove('btn-primary'); visualizer.classList.remove('active'); };
 }
 function toggleMic() {
     if (!recognition) return alert("Mic not supported.");
     const micBtn = document.getElementById('mic-btn');
-    if (micBtn.classList.contains('active')) recognition.stop();
-    else { recognition.start(); micBtn.classList.add('active'); visualizer.classList.add('active'); }
+    if (micBtn.classList.contains('btn-primary')) recognition.stop();
+    else { recognition.start(); micBtn.classList.add('btn-primary'); visualizer.classList.add('active'); }
 }
 
 // --- AI Request & Speech Synthesis ---
