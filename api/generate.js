@@ -8,9 +8,9 @@ export default async function handler(req, res) {
     let model = '';
     let systemPrompt = '';
 
-    // Route to expensive models only for SVG, cheap models for chat
     if (type === 'svg') {
-        systemPrompt = `You are an expert SVG generator. Create a character based on the prompt. Return ONLY valid JSON. Keys must be: 'head', 'torso', 'left_arm', 'right_arm', 'left_leg', 'right_leg'. Values must be valid SVG inner tags aligned in a 200x200 viewBox.`;
+        // Strict template to force separable layers
+        systemPrompt = `You are an expert SVG generator. Create a character based on the prompt. Return ONLY valid JSON. Keys MUST be exactly: 'head', 'torso', 'left_arm', 'right_arm', 'left_leg', 'right_leg'. Values MUST be valid SVG inner tags (<path>, <rect>, <circle>) with fill colors, designed to align within a 200x200 viewBox.`;
         if (apiKey.startsWith('AIza')) model = 'gemini-1.5-pro';
         else if (apiKey.startsWith('sk-ant')) model = 'claude-3-5-sonnet-20240620';
         else model = 'gpt-4o';
