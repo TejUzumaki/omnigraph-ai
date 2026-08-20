@@ -11,7 +11,7 @@
 </head>
 <body>
     <div class="app">
-        <!-- Sidebar & Backdrop -->
+        <!-- Sidebar -->
         <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="toggleSidebar()"></div>
         <aside id="sidebar" class="sidebar">
             <button class="btn btn-primary cuts" onclick="startNewChat()">+ New Chat</button>
@@ -31,7 +31,7 @@
             <div id="chat-log" class="chat-log"></div>
 
             <!-- Input Area -->
-            <div class="input-area">
+            <div class="input-area" id="input-area">
                 <div class="audio-visualizer" id="audio-visualizer">
                     <svg viewBox="0 0 100 40" preserveAspectRatio="none">
                         <rect class="bar" x="0" y="15" width="4" height="10"></rect>
@@ -48,47 +48,41 @@
                 </div>
                 <input type="text" id="prompt" class="inp cuts" placeholder="Ask to visualize math..." autocomplete="off" onkeydown="if(event.key==='Enter') sendPrompt()">
                 
-                <!-- SVG Mic Button -->
                 <button id="mic-btn" class="btn btn-ghost cutxs action-btn" onclick="toggleMic()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                        <line x1="8" y1="23" x2="16" y2="23"></line>
-                    </svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                 </button>
                 <button class="btn btn-primary cutxs action-btn" onclick="sendPrompt()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                    </svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>
             </div>
         </main>
 
-        <!-- Onboarding Tutorial Overlay -->
+        <!-- Turbulent Fluid Voice Mode Overlay -->
+        <div id="fluid-overlay" class="fluid-overlay hidden">
+            <div class="fluid-bg"></div>
+            <svg style="display:none">
+                <filter id="fluid-filter">
+                    <feTurbulence id="fluid-turbulence" type="fractalNoise" baseFrequency="0.008 0.008" numOctaves="2" result="noise" />
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="80" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+            </svg>
+            <div id="transcribed-text" class="transcribed-text">Listening...</div>
+            <button class="btn btn-danger cutxs close-fluid" onclick="toggleMic()">Cancel</button>
+        </div>
+
+        <!-- Onboarding Tutorial -->
         <div id="tutorial" class="tutorial-overlay">
             <div class="tutorial-content cut">
                 <h2>Welcome to OmniGraph AI</h2>
                 <p>A space-age math visualizer.</p>
-                <div class="tut-step">
-                    <h3>1. Ask or Speak</h3>
-                    <p>Type your question or hit the mic to speak. Ask it to "Show me a circle equation".</p>
-                </div>
-                <div class="tut-step">
-                    <h3>2. Visualize</h3>
-                    <p>The AI will explain the concept and draw it on the dark board inside the chat.</p>
-                </div>
+                <div class="tut-step"><h3>1. Ask or Speak</h3><p>Type your question or hit the mic to speak. Ask it to "Show me a circle equation".</p></div>
+                <div class="tut-step"><h3>2. Visualize</h3><p>The AI will explain the concept and draw it on the dark board inside the chat.</p></div>
                 <button class="btn btn-primary cuts start-btn" onclick="finishTutorial()">Start</button>
             </div>
         </div>
     </div>
 
     <script src="/app.js"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js');
-      }
-    </script>
+    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>
