@@ -13,7 +13,6 @@
     <div class="app">
         <div class="bg-grid"></div>
         <div class="bg-dots"></div>
-
         <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="toggleSidebar()"></div>
         <aside id="sidebar" class="sidebar">
             <div class="sidebar-header">
@@ -24,16 +23,13 @@
             </div>
             <div id="chat-history" class="history-container"></div>
         </aside>
-
         <main class="main-app">
             <header class="header">
                 <button class="btn btn-ghost cutxs menu-btn" onclick="toggleSidebar()">≡</button>
                 <h1 class="callsign">OMNIGRAPH</h1>
                 <div class="status-indicator"><span id="status-dot" class="status-dot"></span></div>
             </header>
-
             <div id="chat-log" class="chat-log"></div>
-
             <div class="input-area" id="input-area">
                 <input type="text" id="prompt" class="inp cuts" placeholder="Ask to visualize math..." autocomplete="off" onkeydown="if(event.key==='Enter') sendPrompt()">
                 <button id="mic-btn" class="btn btn-ghost cutxs action-btn" onclick="toggleMic()">
@@ -44,15 +40,11 @@
                 </button>
             </div>
         </main>
-
-        <!-- Vignette Fluid Voice Mode -->
         <div id="fluid-overlay" class="fluid-overlay hidden">
             <div class="vignette-fluid" id="vignette-fluid"></div>
             <div id="transcribed-text" class="transcribed-text">Listening...</div>
             <button class="btn btn-danger cutxs close-fluid" onclick="toggleMic()">Cancel</button>
         </div>
-
-        <!-- Custom Modal (Rename/Delete) -->
         <div id="custom-modal" class="custom-modal hidden">
             <div class="modal-content cut">
                 <h2 id="modal-title">Action</h2>
@@ -63,17 +55,12 @@
                 </div>
             </div>
         </div>
-
-        <!-- Settings Modal -->
         <div id="settings-modal" class="custom-modal hidden">
             <div class="modal-content cut">
                 <h2>Settings</h2>
                 <div class="settings-group">
                     <label>AI Voice Output</label>
-                    <label class="switch">
-                        <input type="checkbox" id="voice-toggle" checked>
-                        <span class="slider"></span>
-                    </label>
+                    <label class="switch"><input type="checkbox" id="voice-toggle" checked><span class="slider"></span></label>
                 </div>
                 <div class="settings-group">
                     <label>Select Voice</label>
@@ -84,8 +71,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Onboarding Tutorial -->
         <div id="tutorial" class="tutorial-overlay">
             <div class="tutorial-content cut">
                 <h2>Welcome to OmniGraph AI</h2>
@@ -96,7 +81,6 @@
             </div>
         </div>
     </div>
-
     <script src="/app.js"></script>
     <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>

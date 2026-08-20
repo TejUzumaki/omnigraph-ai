@@ -15,18 +15,23 @@ export default async function handler(req, res) {
     const apiKey = process.env.AI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'Configuration Error: Nvidia API key missing.' });
 
-    // Prevent accidental duplicate spam
     if (lastPrompts[ip] && lastPrompts[ip].text === prompt && (now - lastPrompts[ip].time) < 5000) {
         return res.status(429).json({ error: 'Duplicate request blocked.' });
     }
     lastPrompts[ip] = { text: prompt, time: now };
 
+    // Updated Prompt: Ask for Markdown with ```svg blocks instead of JSON
     const systemPrompt = `You are OmniGraph AI, an expert math visualizer. 
-    Return ONLY valid JSON. 
-    If generating math/SVG, format: {"text": "Brief explanation...", "svg": "<svg tags fitting 200x200 viewBox>"}. 
-    If just chatting, format: {"text": "Response...", "svg": ""}.`;
+    If generating math/SVG, write a brief explanation, then include a markdown code block labeled "svg" containing valid SVG inner tags fitting a 200x200 viewBox. 
+    Example: Here is the equation. \n\`\`\`svg\n<circle cx="100" cy="100" r="50" fill="none" stroke="#3B82F6"/>\n\`\`\`
+    If just chatting, respond normally without code blocks.`;
 
     try {
+        // Set up SSE headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
         const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -34,27 +39,41 @@ export default async function handler(req, res) {
                 model: 'meta/llama-3.1-70b-instruct',
                 messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
                 temperature: 0.2,
-                max_tokens: 800
+                max_tokens: 800,
+                stream: true // ENABLE STREAMING
             })
         });
 
-        const data = await response.json();
         if (!response.ok) {
-            const errDetail = data.error?.message || 'Unknown API rejection.';
-            return res.status(response.status).json({ error: `Nvidia API Error (${response.status}): ${errDetail}` });
+            const errData = await response.json();
+            return res.status(response.status).json({ error: `Nvidia API Error: ${errData.error?.message}` });
         }
 
-        if (!data.choices || !data.choices[0]) return res.status(500).json({ error: 'Malformed Response.' });
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-        let text = data.choices[0].message.content;
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        
-        try {
-            const json = JSON.parse(text);
-            res.status(200).json({ text: json.text || "", svg: json.svg || "" });
-        } catch (e) {
-            res.status(200).json({ text: text, svg: "" });
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value);
+            // Nvidia sends "data: {...}\n\n"
+            const lines = chunk.split('\n');
+            for (let line of lines) {
+                if (line.startsWith('data: ')) {
+                    const jsonStr = line.substring(6).trim();
+                    if (jsonStr === '[DONE]') continue;
+                    try {
+                        const data = JSON.parse(jsonStr);
+                        const token = data.choices[0]?.delta?.content || '';
+                        if (token) {
+                            res.write(`data: ${JSON.stringify({ token })}\n\n`);
+                        }
+                    } catch (e) { /* ignore partial json */ }
+                }
+            }
         }
+        res.write('data: [DONE]\n\n');
+        res.end();
     } catch (error) {
         res.status(500).json({ error: `Network or Server Error: ${error.message}` });
     }
