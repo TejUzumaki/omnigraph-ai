@@ -9,7 +9,6 @@ function init() {
     if (localStorage.getItem('tutorialSeen') === 'true') document.getElementById('tutorial').style.display = 'none';
     checkApiStatus(); renderHistory(); loadSettings();
     setInterval(toggleBgPattern, 10000);
-    initMic(); // Initialize Mic safely
 }
 init();
 
@@ -61,7 +60,6 @@ function openModal(action, id) {
 function closeModal() { document.getElementById('custom-modal').classList.add('hidden'); }
 function saveChats() { localStorage.setItem('chats', JSON.stringify(chats)); }
 
-// --- Streaming & Rendering ---
 function renderMessage(sender, text, svgString, isError = false) {
     const log = document.getElementById('chat-log'); const msgDiv = document.createElement('div');
     msgDiv.className = `msg-container cut ${sender} ${isError ? 'error-msg' : ''}`;
@@ -76,40 +74,99 @@ function showTyping() { const log = document.getElementById('chat-log'); const m
 function removeTyping() { const t = document.getElementById('typing-bubble'); if (t) t.remove(); }
 function copyError(text) { navigator.clipboard.writeText(text).then(() => alert("Copied!")); }
 
-// --- Mic Logic (Robust Initialization) ---
-function initMic() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { console.warn("Speech Recognition not supported"); return; }
-    recognition = new SR();
-    recognition.continuous = false; recognition.interimResults = true;
-    recognition.onresult = (e) => { let txt = ''; for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript; document.getElementById('transcribed-text').innerText = txt; };
-    recognition.onend = () => { const finalText = document.getElementById('transcribed-text').innerText; stopVisualizer(); document.getElementById('fluid-overlay').classList.add('hidden'); document.getElementById('mic-btn').classList.remove('btn-primary'); if (finalText && finalText !== 'Listening...') { document.getElementById('prompt').value = finalText; sendPrompt(); } };
-    recognition.onerror = (e) => { console.error("Mic Error:", e.error); stopVisualizer(); document.getElementById('fluid-overlay').classList.add('hidden'); };
-}
+// --- Bulletproof Mic Initialization ---
+// We instantiate it inside the click to ensure the browser allows it securely
 async function toggleMic() {
-    if (!recognition) return alert("Mic not supported in this browser.");
     const micBtn = document.getElementById('mic-btn');
-    if (micBtn.classList.contains('btn-primary')) { recognition.stop(); }
-    else {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            audioContext = new (window.AudioContext || window.webkitAudioContext)(); analyser = audioContext.createAnalyser(); analyser.fftSize = 32;
-            const micSource = audioContext.createMediaStreamSource(stream); micSource.connect(analyser); dataArray = new Uint8Array(analyser.frequencyBinCount);
-            micBtn.classList.add('btn-primary'); document.getElementById('fluid-overlay').classList.remove('hidden'); document.getElementById('transcribed-text').innerText = 'Listening...';
-            updateVisualizer(); recognition.start();
-        } catch (e) { alert("Microphone permission denied or blocked."); console.error(e); }
+    const fluidOverlay = document.getElementById('fluid-overlay');
+    const transcribedText = document.getElementById('transcribed-text');
+    
+    // If already listening, stop
+    if (micBtn.classList.contains('btn-primary')) {
+        if (recognition) recognition.stop();
+        stopVisualizer();
+        return;
+    }
+
+    // Check support securely
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        alert("Speech Recognition is not supported in this browser. Please use Chrome on Android or Safari on iOS.");
+        return;
+    }
+
+    // Initialize if not already
+    if (!recognition) {
+        recognition = new SR();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.onresult = (e) => {
+            let txt = '';
+            for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+            transcribedText.innerText = txt;
+        };
+        recognition.onend = () => {
+            const finalText = transcribedText.innerText;
+            stopVisualizer();
+            fluidOverlay.classList.add('hidden');
+            micBtn.classList.remove('btn-primary');
+            if (finalText && finalText !== 'Listening...') {
+                document.getElementById('prompt').value = finalText;
+                sendPrompt();
+            }
+        };
+        recognition.onerror = (e) => {
+            console.error("Speech Recognition Error:", e.error);
+            stopVisualizer();
+            fluidOverlay.classList.add('hidden');
+            micBtn.classList.remove('btn-primary');
+            if (e.error === 'not-allowed') {
+                alert("Microphone permission blocked. Please allow it in your browser settings.");
+            }
+        };
+    }
+
+    try {
+        // Ask for mic permission visually
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new (window.AudioContext || window.webkitAudioContext());
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 32;
+        const micSource = audioContext.createMediaStreamSource(stream);
+        micSource.connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        
+        micBtn.classList.add('btn-primary');
+        fluidOverlay.classList.remove('hidden');
+        transcribedText.innerText = 'Listening...';
+        
+        updateVisualizer();
+        recognition.start();
+    } catch (e) {
+        console.error("Mic Access Error:", e);
+        alert("Microphone permission denied or blocked. Please ensure you are on HTTPS and allow mic access.");
     }
 }
+
 function updateVisualizer() {
     if (document.getElementById('fluid-overlay').classList.contains('hidden')) return;
-    analyser.getByteFrequencyData(dataArray); let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i]; let avg = sum / dataArray.length;
-    const scale = 1.0 + (avg / 255) * 0.15; const opacity = 0.15 + (avg / 255) * 0.35;
-    document.getElementById('vignette-fluid').style.transform = `scale(${scale})`; document.getElementById('vignette-fluid').style.opacity = opacity;
+    if (!analyser) return;
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
+    let avg = sum / dataArray.length;
+    const scale = 1.0 + (avg / 255) * 0.15;
+    const opacity = 0.15 + (avg / 255) * 0.35;
+    document.getElementById('vignette-fluid').style.transform = `scale(${scale})`;
+    document.getElementById('vignette-fluid').style.opacity = opacity;
     visualizerFrame = requestAnimationFrame(updateVisualizer);
 }
-function stopVisualizer() { if (audioContext) { audioContext.close(); audioContext = null; } if (visualizerFrame) cancelAnimationFrame(visualizerFrame); document.getElementById('mic-btn').classList.remove('btn-primary'); document.getElementById('fluid-overlay').classList.add('hidden'); }
+function stopVisualizer() {
+    if (audioContext) { audioContext.close(); audioContext = null; }
+    if (visualizerFrame) cancelAnimationFrame(visualizerFrame);
+    document.getElementById('mic-btn').classList.remove('btn-primary');
+    document.getElementById('fluid-overlay').classList.add('hidden');
+}
 
-// --- AI Streaming Fetch ---
 async function sendPrompt() {
     const input = document.getElementById('prompt'); let prompt = input.value.trim();
     if (!prompt) return; if (prompt === lastSentPrompt) return; lastSentPrompt = prompt;
@@ -118,7 +175,7 @@ async function sendPrompt() {
     
     try {
         const res = await fetch('/api/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ prompt }) });
-        removeTyping(); // Remove loader, create blank AI bubble
+        removeTyping();
         const log = document.getElementById('chat-log');
         const msgDiv = document.createElement('div'); msgDiv.className = 'msg-container cut ai'; msgDiv.innerHTML = '<div class="text-content"></div>';
         log.appendChild(msgDiv); log.scrollTop = log.scrollHeight;
@@ -139,7 +196,6 @@ async function sendPrompt() {
                         if (token.includes('```')) { isSvg = false; continue; }
                         if (isSvg) { svgText += token; } else { fullText += token; msgDiv.querySelector('.text-content').innerHTML += token; }
                         
-                        // Show whiteboard immediately if SVG starts
                         if (isSvg && !msgDiv.querySelector('.whiteboard')) {
                             const wb = document.createElement('div'); wb.className = 'whiteboard cuts'; wb.innerHTML = '<div class="typing-indicator"><div class="resonance-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
                             msgDiv.appendChild(wb);
@@ -153,11 +209,9 @@ async function sendPrompt() {
             }
         }
         
-        // Save to local storage
         const chat = chats.find(c => c.id === currentChatId);
         if (chat) { chat.messages.push({ sender: 'ai', text: fullText, svg: svgText, isError: false }); saveChats(); }
         
-        // Text-to-Speech
         if (settings.voiceEnabled && fullText && !document.hidden) {
             const utterance = new SpeechSynthesisUtterance(fullText);
             if (settings.voiceURI) { const v = speechSynthesis.getVoices().find(v => v.uri === settings.voiceURI); if (v) utterance.voice = v; }
