@@ -20,17 +20,16 @@ export default async function handler(req, res) {
     }
     lastPrompts[ip] = { text: prompt, time: now };
 
-    // Updated Prompt: Ask for Markdown with ```svg blocks instead of JSON
+    // Strict Prompt: SVG FIRST, then brief text. No long theories.
     const systemPrompt = `You are OmniGraph AI, an expert math visualizer. 
-    If generating math/SVG, write a brief explanation, then include a markdown code block labeled "svg" containing valid SVG inner tags fitting a 200x200 viewBox. 
-    Example: Here is the equation. \n\`\`\`svg\n<circle cx="100" cy="100" r="50" fill="none" stroke="#3B82F6"/>\n\`\`\`
-    If just chatting, respond normally without code blocks.`;
+    If the user asks to explain or show math (parabola, circle, etc.), your FIRST output must be a markdown code block labeled "svg" containing valid SVG inner tags fitting a 200x200 viewBox. 
+    AFTER the SVG block, provide a brief 1-2 sentence explanation. Do not give long theories.`;
 
     try {
-        // Set up SSE headers
         res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
         res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no'); // Prevent Vercel proxy buffering
 
         const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
             method: 'POST',
@@ -39,8 +38,8 @@ export default async function handler(req, res) {
                 model: 'meta/llama-3.1-70b-instruct',
                 messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
                 temperature: 0.2,
-                max_tokens: 800,
-                stream: true // ENABLE STREAMING
+                max_tokens: 600,
+                stream: true
             })
         });
 
@@ -56,7 +55,6 @@ export default async function handler(req, res) {
             const { done, value } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value);
-            // Nvidia sends "data: {...}\n\n"
             const lines = chunk.split('\n');
             for (let line of lines) {
                 if (line.startsWith('data: ')) {
@@ -68,7 +66,7 @@ export default async function handler(req, res) {
                         if (token) {
                             res.write(`data: ${JSON.stringify({ token })}\n\n`);
                         }
-                    } catch (e) { /* ignore partial json */ }
+                    } catch (e) { /* ignore partial */ }
                 }
             }
         }
