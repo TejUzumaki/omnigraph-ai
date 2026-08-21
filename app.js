@@ -4,7 +4,6 @@ let recognition = null;
 let audioContext, analyser, dataArray, visualizerFrame;
 let lastSentPrompt = "";
 let settings = JSON.parse(localStorage.getItem('settings') || '{"voiceEnabled":true,"voiceURI":""}');
-let speechStarted = false;
 
 function init() {
     if (localStorage.getItem('tutorialSeen') === 'true') document.getElementById('landing-page').style.display = 'none';
@@ -50,20 +49,38 @@ function finishTutorial() { document.getElementById('landing-page').style.displa
 
 function showAudioIsland() { document.getElementById('audio-island').classList.remove('hidden'); }
 function hideAudioIsland() { document.getElementById('audio-island').classList.add('hidden'); }
+function setWaveState(state) {
+    const wave = document.querySelector('.island-wave');
+    if (!wave) return;
+    if (state === 'speaking') {
+        wave.classList.add('speaking');
+        wave.classList.remove('paused');
+    } else if (state === 'paused') {
+        wave.classList.remove('speaking');
+        wave.classList.add('paused');
+    } else {
+        wave.classList.remove('speaking', 'paused');
+    }
+}
+
 function togglePauseSpeech() {
     haptic();
     const icon = document.getElementById('play-pause-icon');
     if (speechSynthesis.paused) {
         speechSynthesis.resume();
+        setWaveState('speaking');
         icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
     } else {
         speechSynthesis.pause();
+        setWaveState('paused');
         icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
     }
 }
+
 function stopSpeech() {
     haptic();
     speechSynthesis.cancel();
+    setWaveState('stopped');
     hideAudioIsland();
     document.getElementById('play-pause-icon').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
 }
@@ -73,7 +90,7 @@ function renderMessage(sender, text, svgString, isError = false) {
     msgDiv.className = `msg-container cut ${sender} ${isError ? 'error-msg' : ''}`;
     let content = ``;
     if (svgString && svgString.trim().length > 0) {
-        content += `<div class="whiteboard cuts"><svg viewBox="0 0 200 200" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">${svgString}</svg></div>`;
+        content += `<div class="whiteboard cuts"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgString}</svg></div>`;
     }
     if (text) {
         content += `<div class="text-content">${text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>`;
@@ -144,23 +161,19 @@ async function sendPrompt() {
                     try {
                         const data = JSON.parse(jsonStr); const token = data.token || "";
                         
-                        // Detect SVG block start
                         if (token.includes('```svg')) { 
                             isSvgBlock = true; 
                             svgCode = token.split('```svg')[1] || "";
                             wbDiv = document.createElement('div'); wbDiv.className = 'whiteboard cuts'; 
-                            // Show loader animation WHILE it streams
                             wbDiv.innerHTML = '<div class="typing-indicator"><div class="resonance-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
                             msgDiv.appendChild(wbDiv);
                             continue; 
                         }
                         
-                        // Detect block end
                         if (isSvgBlock && token.includes('```')) { 
                             isSvgBlock = false; 
                             svgCode += token.split('```')[0] || "";
-                            // Replace loader with finished SVG
-                            if (wbDiv) wbDiv.innerHTML = `<svg viewBox="0 0 200 200" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">${svgCode.trim()}</svg>`;
+                            if (wbDiv) wbDiv.innerHTML = `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgCode.trim()}</svg>`;
                             textDiv = document.createElement('div'); textDiv.className = 'text-content'; msgDiv.appendChild(textDiv);
                             continue; 
                         }
@@ -180,7 +193,6 @@ async function sendPrompt() {
             }
         }
         
-        // Finalize: trigger speech ONLY on clean explanation text
         if (settings.voiceEnabled && explanationText.trim().length > 0) {
             startSpeech(explanationText.trim());
         }
@@ -195,14 +207,24 @@ async function sendPrompt() {
 
 function startSpeech(text) {
     stopSpeech();
-    // Strip markdown formatting for cleaner speech output
     const cleanText = text.replace(/[*_#`]/g, '').trim();
     if (!cleanText) return;
     
     const utterance = new SpeechSynthesisUtterance(cleanText);
     if (settings.voiceURI) { const v = speechSynthesis.getVoices().find(v => v.uri === settings.voiceURI); if (v) utterance.voice = v; }
-    utterance.onend = () => { hideAudioIsland(); speechStarted = false; };
-    utterance.onerror = () => { hideAudioIsland(); speechStarted = false; };
-    showAudioIsland();
+    
+    utterance.onstart = () => {
+        showAudioIsland();
+        setWaveState('speaking');
+    };
+    utterance.onend = () => {
+        hideAudioIsland();
+        setWaveState('stopped');
+    };
+    utterance.onerror = () => {
+        hideAudioIsland();
+        setWaveState('stopped');
+    };
+    
     speechSynthesis.speak(utterance);
 }

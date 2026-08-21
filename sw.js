@@ -1,9 +1,10 @@
-const CACHE_NAME = 'omnigraph-cache-v2';
+const CACHE_NAME = 'omnigraph-cache-v3';
 const urlsToCache = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
 });
 
@@ -18,18 +19,27 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Network-first for HTML/JS/CSS to ensure updates are fetched immediately
-  if (event.request.mode === 'navigate' || event.request.destination === 'script' || event.request.destination === 'style') {
+  if (event.request.method !== 'GET') return;
+  
+  // Network-first for application scripts, styles, and shell
+  if (event.request.mode === 'navigate' || 
+      event.request.destination === 'script' || 
+      event.request.destination === 'style') {
     event.respondWith(
-      fetch(event.request).then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-        return response;
-      }).catch(() => caches.match(event.request))
+      fetch(event.request)
+        .then(response => {
+          if (response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
   } else {
-    // Cache-first for API and static assets
-    event.respondWith(caches.match(event.request).then(response => response || fetch(event.request)));
+    event.respondWith(
+      caches.match(event.request).then(response => response || fetch(event.request))
+    );
   }
 });
 
