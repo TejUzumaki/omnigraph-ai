@@ -13,11 +13,27 @@ function init() {
 }
 init();
 
+async function checkApiStatus() {
+    try {
+        const res = await fetch('/api/ping');
+        const data = await res.json();
+        const dot = document.getElementById('status-dot');
+        if (data.status === 'connected') {
+            dot.classList.add('online');
+            dot.classList.remove('error');
+        } else {
+            dot.classList.add('error');
+            dot.classList.remove('online');
+        }
+    } catch (e) {
+        document.getElementById('status-dot').classList.add('error');
+    }
+}
+
 function haptic() { if (navigator.vibrate) navigator.vibrate(10); }
 function toggleBgPattern() { document.querySelector('.app').classList.toggle('dots-active'); }
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stopSpeech(); if (recognition) recognition.stop(); } });
 
-// --- Settings & UI ---
 function loadSettings() { document.getElementById('voice-toggle').checked = settings.voiceEnabled; populateVoices(); }
 function populateVoices() { const voices = speechSynthesis.getVoices(); const select = document.getElementById('voice-select'); select.innerHTML = ''; voices.forEach(v => { const opt = document.createElement('option'); opt.value = v.uri; opt.innerText = v.name; if (v.uri === settings.voiceURI) opt.selected = true; select.appendChild(opt); }); }
 if (typeof speechSynthesis !== 'undefined') speechSynthesis.onvoiceschanged = populateVoices;
@@ -28,11 +44,10 @@ function renderHistory() { const h = document.getElementById('chat-history'); h.
 function startNewChat() { const n = { id: Date.now(), title: 'New Session', messages: [] }; chats.unshift(n); currentChatId = n.id; document.getElementById('chat-log').innerHTML = ''; saveChats(); renderHistory(); toggleSidebar(); }
 function loadChat(id) { currentChatId = id; const c = chats.find(x => x.id === id); const log = document.getElementById('chat-log'); log.innerHTML = ''; c.messages.forEach(m => renderMessage(m.sender, m.text, m.svg, m.isError)); renderHistory(); toggleSidebar(); }
 function openModal(action, id) { const m = document.getElementById('custom-modal'), t = document.getElementById('modal-title'), inp = document.getElementById('modal-input'), b = document.getElementById('modal-confirm-btn'); if (action === 'rename') { t.innerText = 'Rename Chat'; const c = chats.find(x => x.id === id); inp.value = c.title; inp.style.display = 'block'; b.onclick = () => { if (inp.value.trim()) { chats.find(x => x.id === id).title = inp.value.trim(); saveChats(); renderHistory(); } closeModal(); }; } else { t.innerText = 'Delete Chat?'; inp.style.display = 'none'; b.onclick = () => { chats = chats.filter(x => x.id !== id); if (currentChatId === id) { currentChatId = null; document.getElementById('chat-log').innerHTML = ''; } saveChats(); renderHistory(); closeModal(); }; } m.classList.remove('hidden'); }
-function closeModal() { document.getElementById('custom-modal').classList.add('hidden'); }
+function closeModal() { document.getElementById('custom-modal').classList.add('hidden'); document.getElementById('prompt').focus(); }
 function saveChats() { localStorage.setItem('chats', JSON.stringify(chats)); }
 function finishTutorial() { document.getElementById('landing-page').style.display = 'none'; localStorage.setItem('tutorialSeen', 'true'); haptic(); }
 
-// --- Audio Island Logic ---
 function showAudioIsland() { document.getElementById('audio-island').classList.remove('hidden'); }
 function hideAudioIsland() { document.getElementById('audio-island').classList.add('hidden'); }
 function togglePauseSpeech() {
@@ -53,23 +68,30 @@ function stopSpeech() {
     document.getElementById('play-pause-icon').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
 }
 
-// --- Rendering ---
 function renderMessage(sender, text, svgString, isError = false) {
     const log = document.getElementById('chat-log'); const msgDiv = document.createElement('div');
     msgDiv.className = `msg-container cut ${sender} ${isError ? 'error-msg' : ''}`;
     let content = ``;
-    if (svgString) content += `<div class="whiteboard cuts"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgString}</svg></div>`;
-    content += `<div class="text-content">${text}</div>`;
+    if (svgString && svgString.trim().length > 0) {
+        content += `<div class="whiteboard cuts"><svg viewBox="0 0 200 200" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">${svgString}</svg></div>`;
+    }
+    if (text) {
+        content += `<div class="text-content">${text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>`;
+    }
     if (isError) content += `<button class="btn btn-ghost cutxs copy-btn" onclick='copyError(${JSON.stringify(text)})'>Copy</button>`;
     msgDiv.innerHTML = content; log.appendChild(msgDiv); log.scrollTop = log.scrollHeight;
     if (!currentChatId) startNewChat(); const chat = chats.find(c => c.id === currentChatId);
-    if (chat) { chat.messages.push({ sender, text, svgString, isError }); if (sender === 'user' && chat.messages.length === 1) { chat.title = text.substring(0, 20) + '...'; renderHistory(); } saveChats(); }
+    if (chat && sender === 'user') {
+        chat.messages.push({ sender, text, svg: svgString, isError });
+        if (chat.messages.length === 1) chat.title = text.substring(0, 20) + '...'; 
+        saveChats(); renderHistory(); 
+    }
 }
 function showTyping() { const log = document.getElementById('chat-log'); const msgDiv = document.createElement('div'); msgDiv.className = 'msg-container cut ai'; msgDiv.id = 'typing-bubble'; msgDiv.innerHTML = `<div class="typing-indicator"><div class="resonance-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`; log.appendChild(msgDiv); log.scrollTop = log.scrollHeight; }
 function removeTyping() { const t = document.getElementById('typing-bubble'); if (t) t.remove(); }
 function copyError(text) { navigator.clipboard.writeText(text).then(() => alert("Copied!")); }
+function lockInput(state) { document.getElementById('prompt').disabled = state; }
 
-// --- Mic Logic ---
 async function toggleMic() {
     const micBtn = document.getElementById('mic-btn'); const fluidOverlay = document.getElementById('fluid-overlay'); const transcribedText = document.getElementById('transcribed-text');
     if (micBtn.classList.contains('btn-primary')) { if (recognition) recognition.stop(); stopVisualizer(); return; }
@@ -84,15 +106,15 @@ async function toggleMic() {
         updateVisualizer(); recognition.start();
     } catch (e) { alert("Microphone permission denied."); }
 }
+
 function updateVisualizer() { if (document.getElementById('fluid-overlay').classList.contains('hidden')) return; if (!analyser) return; analyser.getByteFrequencyData(dataArray); let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i]; let avg = sum / dataArray.length; const scale = 1.0 + (avg / 255) * 0.15; const opacity = 0.15 + (avg / 255) * 0.35; document.getElementById('vignette-fluid').style.transform = `scale(${scale})`; document.getElementById('vignette-fluid').style.opacity = opacity; visualizerFrame = requestAnimationFrame(updateVisualizer); }
 function stopVisualizer() { if (audioContext) { audioContext.close(); audioContext = null; } if (visualizerFrame) cancelAnimationFrame(visualizerFrame); document.getElementById('mic-btn').classList.remove('btn-primary'); document.getElementById('fluid-overlay').classList.add('hidden'); }
 
-// --- Streaming & Whiteboard-First Logic ---
 async function sendPrompt() {
     const input = document.getElementById('prompt'); let prompt = input.value.trim();
     if (!prompt) return; if (prompt === lastSentPrompt) return; lastSentPrompt = prompt;
     if (!currentChatId) startNewChat();
-    renderMessage('user', prompt, null); input.value = ''; showTyping();
+    renderMessage('user', prompt, null); input.value = ''; showTyping(); lockInput(true);
     
     try {
         const res = await fetch('/api/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ prompt }) });
@@ -101,68 +123,83 @@ async function sendPrompt() {
         const msgDiv = document.createElement('div'); msgDiv.className = 'msg-container cut ai'; msgDiv.innerHTML = '';
         log.appendChild(msgDiv); log.scrollTop = log.scrollHeight;
         
-        if (!res.ok) { const errData = await res.json(); msgDiv.classList.add('error-msg'); msgDiv.innerHTML = `<div class="text-content">${errData.error || "Unknown Error"}</div><button class="btn btn-ghost cutxs copy-btn" onclick='copyError("Error")'>Copy</button>`; return; }
+        if (!res.ok) { 
+            const errData = await res.json(); 
+            msgDiv.classList.add('error-msg'); 
+            msgDiv.innerHTML = `<div class="text-content">${errData.error || "Unknown Error"}</div><button class="btn btn-ghost cutxs copy-btn" onclick='copyError("Error")'>Copy</button>`; 
+            lockInput(false); return; 
+        }
         
         const reader = res.body.getReader(); const decoder = new TextDecoder();
-        let fullText = ""; let svgText = ""; let isSvg = false;
+        let explanationText = ""; let svgCode = ""; let isSvgBlock = false;
         let textDiv = null; let wbDiv = null;
         
         while (true) {
             const { done, value } = await reader.read(); if (done) break;
             const chunk = decoder.decode(value); const lines = chunk.split('\n');
             for (let line of lines) {
-                if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+                if (line.startsWith('data: ')) {
+                    const jsonStr = line.substring(6).trim();
+                    if (jsonStr === '[DONE]') continue;
                     try {
-                        const data = JSON.parse(line.substring(6)); const token = data.token || "";
+                        const data = JSON.parse(jsonStr); const token = data.token || "";
                         
-                        // SVG First Logic
+                        // Detect SVG block start
                         if (token.includes('```svg')) { 
-                            isSvg = true; 
+                            isSvgBlock = true; 
+                            svgCode = token.split('```svg')[1] || "";
                             wbDiv = document.createElement('div'); wbDiv.className = 'whiteboard cuts'; 
+                            // Show loader animation WHILE it streams
                             wbDiv.innerHTML = '<div class="typing-indicator"><div class="resonance-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
-                            msgDiv.appendChild(wbDiv); // Prepend whiteboard
-                            continue; 
-                        }
-                        if (token.includes('```')) { 
-                            isSvg = false; 
-                            if (!textDiv) { textDiv = document.createElement('div'); textDiv.className = 'text-content'; msgDiv.appendChild(textDiv); } // Create text div after svg
+                            msgDiv.appendChild(wbDiv);
                             continue; 
                         }
                         
-                        if (isSvg) { 
-                            svgText += token; 
-                            if (wbDiv) wbDiv.innerHTML = `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgText}</svg>`;
+                        // Detect block end
+                        if (isSvgBlock && token.includes('```')) { 
+                            isSvgBlock = false; 
+                            svgCode += token.split('```')[0] || "";
+                            // Replace loader with finished SVG
+                            if (wbDiv) wbDiv.innerHTML = `<svg viewBox="0 0 200 200" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">${svgCode.trim()}</svg>`;
+                            textDiv = document.createElement('div'); textDiv.className = 'text-content'; msgDiv.appendChild(textDiv);
+                            continue; 
+                        }
+                        
+                        if (isSvgBlock) { 
+                            svgCode += token; 
                         } else { 
-                            if (!textDiv) { textDiv = document.createElement('div'); textDiv.className = 'text-content'; msgDiv.appendChild(textDiv); } // Fallback if no svg block
-                            fullText += token; textDiv.innerHTML += token; 
+                            if (!token.includes('```')) {
+                                explanationText += token; 
+                                if (!textDiv) { textDiv = document.createElement('div'); textDiv.className = 'text-content'; msgDiv.appendChild(textDiv); }
+                                textDiv.innerHTML = explanationText.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); 
+                            }
                         }
-                        
-                        // Pre-speak at 80% (approx 300 chars)
-                        if (settings.voiceEnabled && !speechStarted && fullText.length > 150) {
-                            speechStarted = true;
-                            startSpeech(fullText);
-                        }
-                        
                         log.scrollTop = log.scrollHeight;
                     } catch (e) {}
                 }
             }
         }
         
-        // If speech hasn't started (short response), start now
-        if (settings.voiceEnabled && !speechStarted && fullText.length > 0) {
-            startSpeech(fullText);
+        // Finalize: trigger speech ONLY on clean explanation text
+        if (settings.voiceEnabled && explanationText.trim().length > 0) {
+            startSpeech(explanationText.trim());
         }
         
         const chat = chats.find(c => c.id === currentChatId);
-        if (chat) { chat.messages.push({ sender: 'ai', text: fullText, svg: svgText, isError: false }); saveChats(); }
+        if (chat) { chat.messages.push({ sender: 'ai', text: explanationText.trim(), svg: svgCode.trim(), isError: false }); saveChats(); }
         
     } catch (e) { removeTyping(); renderMessage('ai', `Network Failure: ${e.message}`, null, true); }
+    
+    lockInput(false); input.focus();
 }
 
 function startSpeech(text) {
-    stopSpeech(); // Clear any existing
-    const utterance = new SpeechSynthesisUtterance(text);
+    stopSpeech();
+    // Strip markdown formatting for cleaner speech output
+    const cleanText = text.replace(/[*_#`]/g, '').trim();
+    if (!cleanText) return;
+    
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     if (settings.voiceURI) { const v = speechSynthesis.getVoices().find(v => v.uri === settings.voiceURI); if (v) utterance.voice = v; }
     utterance.onend = () => { hideAudioIsland(); speechStarted = false; };
     utterance.onerror = () => { hideAudioIsland(); speechStarted = false; };

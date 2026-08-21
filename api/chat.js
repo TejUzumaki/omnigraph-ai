@@ -20,16 +20,16 @@ export default async function handler(req, res) {
     }
     lastPrompts[ip] = { text: prompt, time: now };
 
-    // Strict Prompt: SVG FIRST, then brief text. No long theories.
-    const systemPrompt = `You are OmniGraph AI, an expert math visualizer. 
-    If the user asks to explain or show math (parabola, circle, etc.), your FIRST output must be a markdown code block labeled "svg" containing valid SVG inner tags fitting a 200x200 viewBox. 
-    AFTER the SVG block, provide a brief 1-2 sentence explanation. Do not give long theories.`;
+    const systemPrompt = `You are OmniGraph AI, a highly advanced space-age math visualizer. 
+    If the user asks to explain or show math (parabola, circle, etc.), your FIRST output MUST be a markdown code block labeled "svg" containing ONLY valid SVG inner tags fitting a 200x200 viewBox. 
+    Do NOT include the <svg> wrapper itself, I will wrap it. 
+    AFTER the code block, provide a brief 1-2 sentence text explanation. Keep theories concise.`;
 
     try {
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache, no-transform');
         res.setHeader('Connection', 'keep-alive');
-        res.setHeader('X-Accel-Buffering', 'no'); // Prevent Vercel proxy buffering
+        res.setHeader('X-Accel-Buffering', 'no');
 
         const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
             method: 'POST',
