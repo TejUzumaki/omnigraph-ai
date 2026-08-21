@@ -1,190 +1,245 @@
-let chats = JSON.parse(localStorage.getItem('chats') || '[]');
+let chats = JSON.parse(localStorage.getItem('omnigraph_chats') || '[]');
 let currentChatId = null;
 let recognition = null;
 let audioContext, analyser, dataArray, visualizerFrame;
 let lastSentPrompt = "";
-let settings = JSON.parse(localStorage.getItem('settings') || '{"voiceEnabled":true,"voiceURI":""}');
+let settings = JSON.parse(localStorage.getItem('omnigraph_settings') || '{"voiceEnabled":true,"voiceURI":""}');
 
 function init() {
-    if (localStorage.getItem('tutorialSeen') === 'true') document.getElementById('landing-page').style.display = 'none';
-    checkApiStatus(); renderHistory(); loadSettings();
-    setInterval(toggleBgPattern, 10000);
+    if (chats.length === 0) startNewChat();
+    else loadChat(chats[0].id);
+    populateVoices();
+    setInterval(() => document.querySelector('.app').classList.toggle('dots-active'), 12000);
 }
 init();
 
-async function checkApiStatus() {
-    try {
-        const res = await fetch('/api/ping');
-        const data = await res.json();
-        const dot = document.getElementById('status-dot');
-        if (data.status === 'connected') {
-            dot.classList.add('online');
-            dot.classList.remove('error');
-        } else {
-            dot.classList.add('error');
-            dot.classList.remove('online');
-        }
-    } catch (e) {
-        document.getElementById('status-dot').classList.add('error');
-    }
+function haptic() { if (navigator.vibrate) navigator.vibrate(12); }
+
+function toggleSidebar() { 
+    haptic();
+    document.getElementById('sidebar').classList.toggle('open'); 
+    document.getElementById('sidebar-backdrop').classList.toggle('active'); 
 }
 
-function haptic() { if (navigator.vibrate) navigator.vibrate(10); }
-function toggleBgPattern() { document.querySelector('.app').classList.toggle('dots-active'); }
-document.addEventListener('visibilitychange', () => { if (document.hidden) { stopSpeech(); if (recognition) recognition.stop(); } });
+function renderHistory() { 
+    const container = document.getElementById('chat-history'); 
+    container.innerHTML = ''; 
+    chats.forEach(c => { 
+        const item = document.createElement('div'); 
+        item.className = `history-item cuts ${c.id === currentChatId ? 'active' : ''}`; 
+        item.innerHTML = `
+            <span class="history-title" onclick="loadChat(${c.id})">${escapeHtml(c.title)}</span>
+            <div class="history-actions">
+                <button class="icon-btn" onclick="event.stopPropagation(); deleteChat(${c.id})">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>`; 
+        container.appendChild(item); 
+    }); 
+}
 
-function loadSettings() { document.getElementById('voice-toggle').checked = settings.voiceEnabled; populateVoices(); }
-function populateVoices() { const voices = speechSynthesis.getVoices(); const select = document.getElementById('voice-select'); select.innerHTML = ''; voices.forEach(v => { const opt = document.createElement('option'); opt.value = v.uri; opt.innerText = v.name; if (v.uri === settings.voiceURI) opt.selected = true; select.appendChild(opt); }); }
+function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+function startNewChat() { 
+    const newChat = { id: Date.now(), title: 'New Sector', messages: [] }; 
+    chats.unshift(newChat); 
+    currentChatId = newChat.id; 
+    document.getElementById('chat-log').innerHTML = ''; 
+    saveChats(); 
+    renderHistory(); 
+    if (document.getElementById('sidebar').classList.contains('open')) toggleSidebar();
+}
+
+function loadChat(id) { 
+    currentChatId = id; 
+    const chat = chats.find(x => x.id === id); 
+    if (!chat) return;
+    const log = document.getElementById('chat-log'); 
+    log.innerHTML = ''; 
+    chat.messages.forEach(m => renderMessageDOM(m.sender, m.text, m.svg, m.isError)); 
+    renderHistory(); 
+    if (document.getElementById('sidebar').classList.contains('open')) toggleSidebar();
+}
+
+function deleteChat(id) {
+    haptic();
+    chats = chats.filter(x => x.id !== id);
+    if (chats.length === 0) startNewChat();
+    else if (currentChatId === id) loadChat(chats[0].id);
+    saveChats();
+    renderHistory();
+}
+
+function saveChats() { localStorage.setItem('omnigraph_chats', JSON.stringify(chats)); }
+
+function populateVoices() { 
+    if (typeof speechSynthesis === 'undefined') return;
+    const voices = speechSynthesis.getVoices(); 
+    const select = document.getElementById('voice-select'); 
+    if (!select) return;
+    select.innerHTML = ''; 
+    voices.forEach(v => { 
+        const opt = document.createElement('option'); 
+        opt.value = v.uri; 
+        opt.innerText = `${v.name} (${v.lang})`; 
+        if (v.uri === settings.voiceURI) opt.selected = true; 
+        select.appendChild(opt); 
+    }); 
+}
 if (typeof speechSynthesis !== 'undefined') speechSynthesis.onvoiceschanged = populateVoices;
-function openSettings() { document.getElementById('settings-modal').classList.remove('hidden'); }
-function closeSettings() { settings.voiceEnabled = document.getElementById('voice-toggle').checked; settings.voiceURI = document.getElementById('voice-select').value; localStorage.setItem('settings', JSON.stringify(settings)); document.getElementById('settings-modal').classList.add('hidden'); }
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebar-backdrop').classList.toggle('active'); }
-function renderHistory() { const h = document.getElementById('chat-history'); h.innerHTML = ''; chats.forEach(c => { const i = document.createElement('div'); i.className = 'history-item cuts' + (c.id === currentChatId ? ' active' : ''); i.innerHTML = `<span class="history-title" onclick="loadChat(${c.id})">${c.title}</span><div class="history-actions"><button class="icon-btn" onclick="event.stopPropagation(); openModal('rename', ${c.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button><button class="icon-btn" onclick="event.stopPropagation(); openModal('delete', ${c.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div>`; h.appendChild(i); }); }
-function startNewChat() { const n = { id: Date.now(), title: 'New Session', messages: [] }; chats.unshift(n); currentChatId = n.id; document.getElementById('chat-log').innerHTML = ''; saveChats(); renderHistory(); toggleSidebar(); }
-function loadChat(id) { currentChatId = id; const c = chats.find(x => x.id === id); const log = document.getElementById('chat-log'); log.innerHTML = ''; c.messages.forEach(m => renderMessage(m.sender, m.text, m.svg, m.isError)); renderHistory(); toggleSidebar(); }
-function openModal(action, id) { const m = document.getElementById('custom-modal'), t = document.getElementById('modal-title'), inp = document.getElementById('modal-input'), b = document.getElementById('modal-confirm-btn'); if (action === 'rename') { t.innerText = 'Rename Chat'; const c = chats.find(x => x.id === id); inp.value = c.title; inp.style.display = 'block'; b.onclick = () => { if (inp.value.trim()) { chats.find(x => x.id === id).title = inp.value.trim(); saveChats(); renderHistory(); } closeModal(); }; } else { t.innerText = 'Delete Chat?'; inp.style.display = 'none'; b.onclick = () => { chats = chats.filter(x => x.id !== id); if (currentChatId === id) { currentChatId = null; document.getElementById('chat-log').innerHTML = ''; } saveChats(); renderHistory(); closeModal(); }; } m.classList.remove('hidden'); }
-function closeModal() { document.getElementById('custom-modal').classList.add('hidden'); document.getElementById('prompt').focus(); }
-function saveChats() { localStorage.setItem('chats', JSON.stringify(chats)); }
-function finishTutorial() { document.getElementById('landing-page').style.display = 'none'; localStorage.setItem('tutorialSeen', 'true'); haptic(); }
 
-function showAudioIsland() { document.getElementById('audio-island').classList.remove('hidden'); }
-function hideAudioIsland() { document.getElementById('audio-island').classList.add('hidden'); }
-function setWaveState(state) {
-    const wave = document.querySelector('.island-wave');
-    if (!wave) return;
-    if (state === 'speaking') {
-        wave.classList.add('speaking');
-        wave.classList.remove('paused');
-    } else if (state === 'paused') {
-        wave.classList.remove('speaking');
-        wave.classList.add('paused');
-    } else {
-        wave.classList.remove('speaking', 'paused');
-    }
-}
-
-function togglePauseSpeech() {
-    haptic();
-    const icon = document.getElementById('play-pause-icon');
-    if (speechSynthesis.paused) {
-        speechSynthesis.resume();
-        setWaveState('speaking');
-        icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
-    } else {
-        speechSynthesis.pause();
-        setWaveState('paused');
-        icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
-    }
-}
-
-function stopSpeech() {
-    haptic();
-    speechSynthesis.cancel();
-    setWaveState('stopped');
-    hideAudioIsland();
-    document.getElementById('play-pause-icon').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
-}
-
-function renderMessage(sender, text, svgString, isError = false) {
-    const log = document.getElementById('chat-log'); const msgDiv = document.createElement('div');
+function renderMessageDOM(sender, text, svgString, isError = false) {
+    const log = document.getElementById('chat-log'); 
+    const msgDiv = document.createElement('div');
     msgDiv.className = `msg-container cut ${sender} ${isError ? 'error-msg' : ''}`;
-    let content = ``;
+    
+    let content = '';
     if (svgString && svgString.trim().length > 0) {
         content += `<div class="whiteboard cuts"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgString}</svg></div>`;
     }
     if (text) {
-        content += `<div class="text-content">${text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}</div>`;
+        const formattedText = escapeHtml(text).replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        content += `<div class="text-content">${formattedText}</div>`;
     }
-    if (isError) content += `<button class="btn btn-ghost cutxs copy-btn" onclick='copyError(${JSON.stringify(text)})'>Copy</button>`;
-    msgDiv.innerHTML = content; log.appendChild(msgDiv); log.scrollTop = log.scrollHeight;
-    if (!currentChatId) startNewChat(); const chat = chats.find(c => c.id === currentChatId);
-    if (chat && sender === 'user') {
+    msgDiv.innerHTML = content; 
+    log.appendChild(msgDiv); 
+    log.scrollTop = log.scrollHeight;
+}
+
+function appendMessage(sender, text, svgString, isError = false) {
+    renderMessageDOM(sender, text, svgString, isError);
+    const chat = chats.find(c => c.id === currentChatId);
+    if (chat) {
         chat.messages.push({ sender, text, svg: svgString, isError });
-        if (chat.messages.length === 1) chat.title = text.substring(0, 20) + '...'; 
-        saveChats(); renderHistory(); 
+        if (chat.messages.length === 1 && sender === 'user') {
+            chat.title = text.substring(0, 24) + (text.length > 24 ? '...' : '');
+        }
+        saveChats();
+        renderHistory();
     }
 }
-function showTyping() { const log = document.getElementById('chat-log'); const msgDiv = document.createElement('div'); msgDiv.className = 'msg-container cut ai'; msgDiv.id = 'typing-bubble'; msgDiv.innerHTML = `<div class="typing-indicator"><div class="resonance-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`; log.appendChild(msgDiv); log.scrollTop = log.scrollHeight; }
-function removeTyping() { const t = document.getElementById('typing-bubble'); if (t) t.remove(); }
-function copyError(text) { navigator.clipboard.writeText(text).then(() => alert("Copied!")); }
-function lockInput(state) { document.getElementById('prompt').disabled = state; }
 
-async function toggleMic() {
-    const micBtn = document.getElementById('mic-btn'); const fluidOverlay = document.getElementById('fluid-overlay'); const transcribedText = document.getElementById('transcribed-text');
-    if (micBtn.classList.contains('btn-primary')) { if (recognition) recognition.stop(); stopVisualizer(); return; }
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("Speech Recognition not supported. Use Chrome on Android."); return; }
-    if (!recognition) { recognition = new SR(); recognition.continuous = false; recognition.interimResults = true; recognition.onresult = (e) => { let txt = ''; for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript; transcribedText.innerText = txt; }; recognition.onend = () => { const finalText = transcribedText.innerText; stopVisualizer(); fluidOverlay.classList.add('hidden'); micBtn.classList.remove('btn-primary'); if (finalText && finalText !== 'Listening...') { document.getElementById('prompt').value = finalText; sendPrompt(); } }; recognition.onerror = (e) => { stopVisualizer(); fluidOverlay.classList.add('hidden'); micBtn.classList.remove('btn-primary'); }; }
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioContext = new (window.AudioContext || window.webkitAudioContext)(); analyser = audioContext.createAnalyser(); analyser.fftSize = 32;
-        const micSource = audioContext.createMediaStreamSource(stream); micSource.connect(analyser); dataArray = new Uint8Array(analyser.frequencyBinCount);
-        micBtn.classList.add('btn-primary'); fluidOverlay.classList.remove('hidden'); transcribedText.innerText = 'Listening...';
-        updateVisualizer(); recognition.start();
-    } catch (e) { alert("Microphone permission denied."); }
+function showTyping() { 
+    const log = document.getElementById('chat-log'); 
+    const div = document.createElement('div'); 
+    div.className = 'msg-container cut ai'; 
+    div.id = 'typing-bubble'; 
+    div.innerHTML = `<div class="typing-indicator"><div class="resonance-loader"><div class="resonance-dot"></div><div class="resonance-dot"></div><div class="resonance-dot"></div></div></div>`; 
+    log.appendChild(div); 
+    log.scrollTop = log.scrollHeight; 
 }
 
-function updateVisualizer() { if (document.getElementById('fluid-overlay').classList.contains('hidden')) return; if (!analyser) return; analyser.getByteFrequencyData(dataArray); let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i]; let avg = sum / dataArray.length; const scale = 1.0 + (avg / 255) * 0.15; const opacity = 0.15 + (avg / 255) * 0.35; document.getElementById('vignette-fluid').style.transform = `scale(${scale})`; document.getElementById('vignette-fluid').style.opacity = opacity; visualizerFrame = requestAnimationFrame(updateVisualizer); }
-function stopVisualizer() { if (audioContext) { audioContext.close(); audioContext = null; } if (visualizerFrame) cancelAnimationFrame(visualizerFrame); document.getElementById('mic-btn').classList.remove('btn-primary'); document.getElementById('fluid-overlay').classList.add('hidden'); }
+function removeTyping() { 
+    const t = document.getElementById('typing-bubble'); 
+    if (t) t.remove(); 
+}
+
+function showAudioIsland() { document.getElementById('audio-island').classList.remove('hidden'); document.getElementById('audio-island').classList.add('speaking'); }
+function hideAudioIsland() { document.getElementById('audio-island').classList.add('hidden'); document.getElementById('audio-island').classList.remove('speaking'); }
+
+function stopSpeech() {
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+    hideAudioIsland();
+}
 
 async function sendPrompt() {
-    const input = document.getElementById('prompt'); let prompt = input.value.trim();
-    if (!prompt) return; if (prompt === lastSentPrompt) return; lastSentPrompt = prompt;
-    if (!currentChatId) startNewChat();
-    renderMessage('user', prompt, null); input.value = ''; showTyping(); lockInput(true);
+    stopSpeech();
+    const input = document.getElementById('prompt'); 
+    let prompt = input.value.trim();
+    if (!prompt) return; 
+    if (prompt === lastSentPrompt) return; 
+    lastSentPrompt = prompt;
+    
+    haptic();
+    appendMessage('user', prompt, null); 
+    input.value = ''; 
+    showTyping(); 
+    document.getElementById('prompt').disabled = true;
     
     try {
-        const res = await fetch('/api/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ prompt }) });
+        const res = await fetch('/api/chat', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ prompt }) 
+        });
+        
         removeTyping();
-        const log = document.getElementById('chat-log');
-        const msgDiv = document.createElement('div'); msgDiv.className = 'msg-container cut ai'; msgDiv.innerHTML = '';
-        log.appendChild(msgDiv); log.scrollTop = log.scrollHeight;
         
-        if (!res.ok) { 
-            const errData = await res.json(); 
-            msgDiv.classList.add('error-msg'); 
-            msgDiv.innerHTML = `<div class="text-content">${errData.error || "Unknown Error"}</div><button class="btn btn-ghost cutxs copy-btn" onclick='copyError("Error")'>Copy</button>`; 
-            lockInput(false); return; 
+        if (!res.ok) {
+            const err = await res.json();
+            appendMessage('ai', err.error || "Neural Link Error", null, true);
+            document.getElementById('prompt').disabled = false;
+            return;
         }
+
+        const reader = res.body.getReader(); 
+        const decoder = new TextDecoder();
+        let rawBuffer = "";
+        let explanationText = ""; 
+        let svgCode = ""; 
+        let isSvgMode = false;
         
-        const reader = res.body.getReader(); const decoder = new TextDecoder();
-        let explanationText = ""; let svgCode = ""; let isSvgBlock = false;
-        let textDiv = null; let wbDiv = null;
+        const log = document.getElementById('chat-log');
+        const msgDiv = document.createElement('div'); 
+        msgDiv.className = 'msg-container cut ai';
+        log.appendChild(msgDiv);
         
+        let wbDiv = null;
+        let textDiv = null;
+
         while (true) {
-            const { done, value } = await reader.read(); if (done) break;
-            const chunk = decoder.decode(value); const lines = chunk.split('\n');
+            const { done, value } = await reader.read(); 
+            if (done) break;
+            rawBuffer += decoder.decode(value, { stream: true });
+            
+            // Process SSE stream robustly
+            const lines = rawBuffer.split('\n');
+            rawBuffer = lines.pop(); // Keep incomplete line in buffer
+            
             for (let line of lines) {
                 if (line.startsWith('data: ')) {
                     const jsonStr = line.substring(6).trim();
                     if (jsonStr === '[DONE]') continue;
                     try {
-                        const data = JSON.parse(jsonStr); const token = data.token || "";
+                        const data = JSON.parse(jsonStr); 
+                        const token = data.token || "";
                         
-                        if (token.includes('```svg')) { 
-                            isSvgBlock = true; 
-                            svgCode = token.split('```svg')[1] || "";
-                            wbDiv = document.createElement('div'); wbDiv.className = 'whiteboard cuts'; 
-                            wbDiv.innerHTML = '<div class="typing-indicator"><div class="resonance-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
-                            msgDiv.appendChild(wbDiv);
-                            continue; 
+                        if (token.includes('```svg')) {
+                            isSvgMode = true;
+                            svgCode += token.split('```svg')[1] || "";
+                            if (!wbDiv) {
+                                wbDiv = document.createElement('div');
+                                wbDiv.className = 'whiteboard cuts';
+                                msgDiv.prepend(wbDiv);
+                            }
+                            continue;
                         }
                         
-                        if (isSvgBlock && token.includes('```')) { 
-                            isSvgBlock = false; 
+                        if (isSvgMode && token.includes('```')) {
+                            isSvgMode = false;
                             svgCode += token.split('```')[0] || "";
-                            if (wbDiv) wbDiv.innerHTML = `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgCode.trim()}</svg>`;
-                            textDiv = document.createElement('div'); textDiv.className = 'text-content'; msgDiv.appendChild(textDiv);
-                            continue; 
+                            if (wbDiv) {
+                                wbDiv.innerHTML = `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgCode.trim()}</svg>`;
+                            }
+                            continue;
                         }
                         
-                        if (isSvgBlock) { 
-                            svgCode += token; 
-                        } else { 
+                        if (isSvgMode) {
+                            svgCode += token;
+                            if (wbDiv) {
+                                wbDiv.innerHTML = `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">${svgCode.trim()}</svg>`;
+                            }
+                        } else {
                             if (!token.includes('```')) {
-                                explanationText += token; 
-                                if (!textDiv) { textDiv = document.createElement('div'); textDiv.className = 'text-content'; msgDiv.appendChild(textDiv); }
-                                textDiv.innerHTML = explanationText.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); 
+                                explanationText += token;
+                                if (!textDiv) {
+                                    textDiv = document.createElement('div');
+                                    textDiv.className = 'text-content';
+                                    msgDiv.appendChild(textDiv);
+                                }
+                                textDiv.innerHTML = escapeHtml(explanationText).replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
                             }
                         }
                         log.scrollTop = log.scrollHeight;
@@ -192,39 +247,82 @@ async function sendPrompt() {
                 }
             }
         }
-        
-        if (settings.voiceEnabled && explanationText.trim().length > 0) {
-            startSpeech(explanationText.trim());
-        }
-        
+
+        // Finalize chat persistence
+        const cleanText = explanationText.trim();
+        const cleanSvg = svgCode.trim();
         const chat = chats.find(c => c.id === currentChatId);
-        if (chat) { chat.messages.push({ sender: 'ai', text: explanationText.trim(), svg: svgCode.trim(), isError: false }); saveChats(); }
-        
-    } catch (e) { removeTyping(); renderMessage('ai', `Network Failure: ${e.message}`, null, true); }
+        if (chat) {
+            chat.messages.push({ sender: 'ai', text: cleanText, svg: cleanSvg, isError: false });
+            saveChats();
+        }
+
+        if (settings.voiceEnabled && cleanText.length > 0) {
+            startSpeechSynthesis(cleanText);
+        }
+
+    } catch (e) {
+        removeTyping();
+        appendMessage('ai', `Connection Lost: ${e.message}`, null, true);
+    }
     
-    lockInput(false); input.focus();
+    document.getElementById('prompt').disabled = false;
+    document.getElementById('prompt').focus();
 }
 
-function startSpeech(text) {
+function startSpeechSynthesis(text) {
     stopSpeech();
-    const cleanText = text.replace(/[*_#`]/g, '').trim();
-    if (!cleanText) return;
+    const clean = text.replace(/[*_#`]/g, '').trim();
+    if (!clean) return;
     
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    if (settings.voiceURI) { const v = speechSynthesis.getVoices().find(v => v.uri === settings.voiceURI); if (v) utterance.voice = v; }
+    const utterance = new SpeechSynthesisUtterance(clean);
+    if (settings.voiceURI) {
+        const v = speechSynthesis.getVoices().find(x => x.uri === settings.voiceURI);
+        if (v) utterance.voice = v;
+    }
     
-    utterance.onstart = () => {
-        showAudioIsland();
-        setWaveState('speaking');
-    };
-    utterance.onend = () => {
-        hideAudioIsland();
-        setWaveState('stopped');
-    };
-    utterance.onerror = () => {
-        hideAudioIsland();
-        setWaveState('stopped');
-    };
+    utterance.onstart = () => showAudioIsland();
+    utterance.onend = () => hideAudioIsland();
+    utterance.onerror = () => hideAudioIsland();
     
     speechSynthesis.speak(utterance);
+}
+
+async function toggleMic() {
+    haptic();
+    const micBtn = document.getElementById('mic-btn'); 
+    const fluidOverlay = document.getElementById('fluid-overlay'); 
+    const transcribedText = document.getElementById('transcribed-text');
+    
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Speech Recognition not supported in this environment."); return; }
+    
+    if (!recognition) { 
+        recognition = new SR(); 
+        recognition.continuous = false; 
+        recognition.interimResults = true; 
+        recognition.onresult = (e) => { 
+            let txt = ''; 
+            for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript; 
+            transcribedText.innerText = txt; 
+        }; 
+        recognition.onend = () => { 
+            const final = transcribedText.innerText; 
+            fluidOverlay.classList.add('hidden'); 
+            micBtn.classList.remove('btn-primary'); 
+            if (final && final !== 'Listening...') { 
+                document.getElementById('prompt').value = final; 
+                sendPrompt(); 
+            } 
+        }; 
+        recognition.onerror = () => { 
+            fluidOverlay.classList.add('hidden'); 
+            micBtn.classList.remove('btn-primary'); 
+        }; 
+    }
+    
+    micBtn.classList.add('btn-primary'); 
+    fluidOverlay.classList.remove('hidden'); 
+    transcribedText.innerText = 'Listening...';
+    recognition.start();
 }
